@@ -2,6 +2,8 @@ package com.reactnativecommunity.webview;
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.Context;
@@ -100,6 +102,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.net.URISyntaxException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -969,7 +972,45 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
     @TargetApi(Build.VERSION_CODES.N)
     @Override
     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+      //
+      // Intent 처리를 위한 코드 추가 - 2023-05-27T06:11:23.0206502Z
+      //
+      Log.d(TAG, request.getUrl().toString());
       final String url = request.getUrl().toString();
+
+      ReactContext mReactContext = (ReactContext) view.getContext();
+
+      if (url == null || url.startsWith("http://") || url.startsWith("https://")) {
+        Log.d(TAG, "url is not intent");
+        return this.shouldOverrideUrlLoading(view, url);
+      }
+
+      try {
+        // Intent 생성
+        Intent intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME);
+        PackageManager packageManager = mReactContext.getPackageManager();
+
+        //실행 가능한 앱이 있으면 앱 실행
+        if (intent.resolveActivity(packageManager) != null) {
+          Log.d(TAG, "has APP");
+          mReactContext.startActivity(intent);
+          Log.d(TAG, "ACTIVITY: ${intent.`package`}");
+          return true;
+        }
+
+        // Fallback URL이 있으면 현재 웹뷰에 로딩
+        String fallbackUrl = intent.getStringExtra("browser_fallback_url");
+        if (fallbackUrl != null) {
+          Log.d(TAG, "has fallbackUrl");
+          view.loadUrl(fallbackUrl);
+          Log.d(TAG, "FALLBACK: $fallbackUrl");
+          return true;
+        }
+        Log.e(TAG, "Could not parse anythings");
+      } catch (URISyntaxException e){
+        Log.e(TAG, "Invalid intent request", e);
+      }
+
       return this.shouldOverrideUrlLoading(view, url);
     }
 
